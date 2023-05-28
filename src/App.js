@@ -1,10 +1,11 @@
 import './App.css';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
+import { getFirestore, collection, addDoc, setDoc, doc, deleteDoc, getDocs } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -71,30 +72,43 @@ const TodoItemInputField = (props) => {
 
 function App() {
   const [todoItemList, setTodoItemList] = useState([]);
-  const onSubmit = (newTodoItem) => {
-        setTodoItemList([...todoItemList, {
-          id: todoItemId++,
+  const syncTodoItemListStateWithFirestore = () => {
+        getDocs(collection(db, "todoItem")).then((querySnapshot) => {
+          const firestoreTodoItemList = [];
+          querySnapshot.forEach((doc) => {
+            firestoreTodoItemList.push({
+              id: doc.id,
+              todoItemContent: doc.data().todoItemContent,
+              isFinished: doc.data().isFinished,
+            });
+          });
+          setTodoItemList(firestoreTodoItemList);
+        });
+      };
+      
+        useEffect(() => {
+          syncTodoItemListStateWithFirestore();
+      
+      }, []);
+    
+  const onSubmit = async (newTodoItem) => {
+    await addDoc(collection(db, "todoItem"), {
           todoItemContent: newTodoItem,
           isFinished: false,
-        }]);
+        });
+        syncTodoItemListStateWithFirestore();
       };
-      const onTodoItemClick = (clickedTodoItem) => {
-            setTodoItemList(todoItemList.map((todoItem) => {
-              if (clickedTodoItem.id === todoItem.id) {
-                return {
-                  id: clickedTodoItem.id,
-                  todoItemContent: clickedTodoItem.todoItemContent,
-                  isFinished: !clickedTodoItem.isFinished,
-                };
-              } else {
-                return todoItem;
-              }
-            }));
+      const onTodoItemClick = async (clickedTodoItem) => {
+            const todoItemRef = doc(db, "todoItem", clickedTodoItem.id);
+            await setDoc(todoItemRef, { isFinished: !clickedTodoItem.isFinished }, { merge: true });
+        
+            syncTodoItemListStateWithFirestore();
           };
-          const onRemoveClick = (removedTodoItem) => {
-                setTodoItemList(todoItemList.filter((todoItem) => {
-                  return todoItem.id !== removedTodoItem.id;
-                }));
+          const onRemoveClick = async (removedTodoItem) => {
+                const todoItemRef = doc(db, "todoItem", removedTodoItem.id);
+                await deleteDoc(todoItemRef);
+            
+                syncTodoItemListStateWithFirestore();
               };
             
     
